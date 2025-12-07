@@ -19,10 +19,8 @@ pub fn main() !void {
     defer io_threaded.deinit();
     var buffer: [124]u8 = undefined;
     const t = try Time.init(io_threaded.io(), &buffer);
-    // yyyy-mm-dd hh:mi:ss
-    // print("datetime: {d}-{d}-{d} {d}:{d}:{d}\n", .{ t.year, t.month, t.day, t.hrs, t.min, t.sec });
     const data = try t.fmt();
-    print("{any}\n", .{data});
+    print("{s}\n", .{data});
 }
 
 const Time = struct {
@@ -55,15 +53,13 @@ const Time = struct {
             .buffer = buffer,
         };
     }
-    pub fn fmt(self: Self) io.Writer.Error![]u8 {
-        // ("datetime: {d}-{d}-{d} {d}:{d}:{d}\n", .{ t.year, t.month, t.day, t.hrs, t.min, t.sec });
+    pub fn fmt(self: Self) ![]u8 {
         const fs_std_out = std.fs.File.stdout();
         var fs_writer = fs_std_out.writer(self.buffer);
         const writer = &fs_writer.interface;
         defer writer.flush() catch unreachable;
-        writer.writeAll("some data") catch |e| {
+        return std.fmt.bufPrint(self.buffer, "{d}-{d}-{d} {d}:{d}:{d}", .{ self.year, self.month, self.day, self.hrs, self.min, self.sec }) catch |e| {
             return e;
         };
-        return "";
     }
 };

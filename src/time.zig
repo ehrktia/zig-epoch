@@ -13,25 +13,26 @@ const epoch_year_day = epoch.YearAndDay;
 
 const real_clock = clock.real;
 var arena_allocator = heap.ArenaAllocator.init(std.heap.page_allocator);
-pub fn main() !void {
-    defer arena_allocator.deinit();
-    var io_threaded = threaded.init(arena_allocator.allocator());
-    defer io_threaded.deinit();
-    var buffer: [124]u8 = undefined;
-    const t = try Time.init(io_threaded.io(), &buffer);
-    const data = try t.fmt();
-    print("{s}\n", .{data});
-}
 
+fn check_day(day: u5) ![2]u8 {
+    var b: [2]u8 = undefined;
+    if (day > 9) {
+        _ = try std.fmt.bufPrint(&b, "{d}", .{day});
+        return b;
+    }
+    _ = try std.fmt.bufPrint(&b, "0{d}", .{day});
+    return b;
+}
 const Time = struct {
     const Self = @This();
     hrs: u5,
     min: u6,
     sec: u6,
     month: u4,
-    day: u5,
+    day: [2]u8,
     year: u16,
     buffer: []u8,
+    timestamp: io.Timestamp,
     pub fn init(std_io: io, buffer: []u8) !Time {
         const timestamp = try clock.now(real_clock, std_io);
         const sec = io.Timestamp.toSeconds(timestamp);
@@ -43,14 +44,16 @@ const Time = struct {
         const day = epoch_seconds.getEpochDay(epoch_seconds{ .secs = sec_unsigned });
         const yr_day = epoch_day.calculateYearDay(day);
         const mon_day = epoch_year_day.calculateMonthDay(yr_day);
+        const day_check = try check_day(mon_day.day_index + 1);
         return Time{
             .hrs = hrs,
             .min = mins,
             .sec = secs,
             .month = mon_day.month.numeric(),
-            .day = mon_day.day_index + 1,
+            .day = day_check,
             .year = yr_day.year,
             .buffer = buffer,
+            .timestamp = timestamp,
         };
     }
     pub fn fmt(self: Self) ![]u8 {
@@ -58,8 +61,38 @@ const Time = struct {
         var fs_writer = fs_std_out.writer(self.buffer);
         const writer = &fs_writer.interface;
         defer writer.flush() catch unreachable;
-        return std.fmt.bufPrint(self.buffer, "{d}-{d}-{d} {d}:{d}:{d}", .{ self.year, self.month, self.day, self.hrs, self.min, self.sec }) catch |e| {
+        const mill = io.Timestamp.toMilliseconds(self.timestamp);
+        return std.fmt.bufPrint(self.buffer, "{d}-{d}-{s} {d}:{d}:{d}.{d}", .{ self.year, self.month, self.day, self.hrs, self.min, self.sec, @rem(mill, 1000) }) catch |e| {
             return e;
         };
     }
 };
+
+// ===========================================================
+// ====================unit test==============================
+// ===========================================================
+
+test "create time" {
+    var buf: [124]u8 = undefined;
+    defer arena_allocator.deinit();
+    var io_threaded = threaded.init(arena_allocator.allocator());
+    defer io_threaded.deinit();
+    const now = Time.init(io_threaded.io(), &buf) catch |e| {
+        std.debug.panic("error creating time:{any}\n", .{e});
+    };
+    const tot_len = try now.fmt();
+    std.debug.print("{s}\n", .{tot_len});
+    try std.testing.expect(tot_len.len > 0);
+}
+
+test "day_with_prefix" {
+    const d: u5 = 5;
+    const day = try check_day(d);
+    try std.testing.expect(day[0] != 0);
+}
+
+test "day_with_no_prefix" {
+    const d: u5 = 15;
+    const day = try check_day(d);
+    try std.testing.expect(day[0] != 1);
+}

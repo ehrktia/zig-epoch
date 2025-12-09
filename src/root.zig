@@ -23,8 +23,13 @@ fn check_day(day: u5) ![2]u8 {
     _ = try std.fmt.bufPrint(&b, "0{d}", .{day});
     return b;
 }
-pub fn now(std_io: io, buffer: []u8) ![]u8 {
-    const timestamp = try clock.now(real_clock, std_io);
+
+pub fn now() [24]u8 {
+    var threaded_io = threaded.init(arena_allocator.allocator());
+    defer arena_allocator.deinit();
+    defer threaded_io.deinit();
+    var buffer: [24]u8 = undefined;
+    const timestamp = clock.now(real_clock, threaded_io.ioBasic()) catch unreachable;
     const sec = io.Timestamp.toSeconds(timestamp);
     const sec_unsigned: u64 = @as(u64, @intCast(sec));
     const day_sec = epoch_seconds.getDaySeconds(epoch_seconds{ .secs = sec_unsigned });
@@ -34,15 +39,10 @@ pub fn now(std_io: io, buffer: []u8) ![]u8 {
     const day = epoch_seconds.getEpochDay(epoch_seconds{ .secs = sec_unsigned });
     const yr_day = epoch_day.calculateYearDay(day);
     const mon_day = epoch_year_day.calculateMonthDay(yr_day);
-    const day_check = try check_day(mon_day.day_index + 1);
-    const fs_std_out = std.fs.File.stdout();
-    var fs_writer = fs_std_out.writer(buffer);
-    const writer = &fs_writer.interface;
-    defer writer.flush() catch unreachable;
+    const day_check = check_day(mon_day.day_index + 1) catch unreachable;
     const mill = io.Timestamp.toMilliseconds(timestamp);
-    return std.fmt.bufPrint(buffer, "{d}-{d}-{s} {d}:{d}:{d}.{d}", .{ yr_day.year, mon_day.month.numeric(), day_check, hrs, mins, secs, @rem(mill, 1000) }) catch |e| {
-        return e;
-    };
+    _ = std.fmt.bufPrint(&buffer, "{d}-{d}-{s} {d}:{d}:{d}.{d}", .{ yr_day.year, mon_day.month.numeric(), day_check, hrs, mins, secs, @rem(mill, 1000) }) catch unreachable;
+    return buffer;
 }
 const Time = struct {
     const Self = @This();
@@ -102,7 +102,6 @@ test "create time" {
         std.debug.panic("error creating time:{any}\n", .{e});
     };
     const tot_len = try tnow.fmt();
-    std.debug.print("{s}\n", .{tot_len});
     try std.testing.expect(tot_len.len > 0);
 }
 
@@ -119,10 +118,6 @@ test "day_with_no_prefix" {
 }
 
 test "now" {
-    var buf: [124]u8 = undefined;
-    defer arena_allocator.deinit();
-    var io_threaded = threaded.init(arena_allocator.allocator());
-    defer io_threaded.deinit();
-    const time_now = try now(io_threaded.io(), &buf);
+    const time_now = now();
     print("now:{s}\n", .{time_now});
 }

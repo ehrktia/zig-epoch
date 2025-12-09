@@ -23,6 +23,27 @@ fn check_day(day: u5) ![2]u8 {
     _ = try std.fmt.bufPrint(&b, "0{d}", .{day});
     return b;
 }
+pub fn now(std_io: io, buffer: []u8) ![]u8 {
+    const timestamp = try clock.now(real_clock, std_io);
+    const sec = io.Timestamp.toSeconds(timestamp);
+    const sec_unsigned: u64 = @as(u64, @intCast(sec));
+    const day_sec = epoch_seconds.getDaySeconds(epoch_seconds{ .secs = sec_unsigned });
+    const hrs = day_epoch_seconds.getHoursIntoDay(day_sec);
+    const mins = day_epoch_seconds.getMinutesIntoHour(day_sec);
+    const secs = day_epoch_seconds.getSecondsIntoMinute(day_sec);
+    const day = epoch_seconds.getEpochDay(epoch_seconds{ .secs = sec_unsigned });
+    const yr_day = epoch_day.calculateYearDay(day);
+    const mon_day = epoch_year_day.calculateMonthDay(yr_day);
+    const day_check = try check_day(mon_day.day_index + 1);
+    const fs_std_out = std.fs.File.stdout();
+    var fs_writer = fs_std_out.writer(buffer);
+    const writer = &fs_writer.interface;
+    defer writer.flush() catch unreachable;
+    const mill = io.Timestamp.toMilliseconds(timestamp);
+    return std.fmt.bufPrint(buffer, "{d}-{d}-{s} {d}:{d}:{d}.{d}", .{ yr_day.year, mon_day.month.numeric(), day_check, hrs, mins, secs, @rem(mill, 1000) }) catch |e| {
+        return e;
+    };
+}
 const Time = struct {
     const Self = @This();
     hrs: u5,
@@ -77,10 +98,10 @@ test "create time" {
     defer arena_allocator.deinit();
     var io_threaded = threaded.init(arena_allocator.allocator());
     defer io_threaded.deinit();
-    const now = Time.init(io_threaded.io(), &buf) catch |e| {
+    const tnow = Time.init(io_threaded.io(), &buf) catch |e| {
         std.debug.panic("error creating time:{any}\n", .{e});
     };
-    const tot_len = try now.fmt();
+    const tot_len = try tnow.fmt();
     std.debug.print("{s}\n", .{tot_len});
     try std.testing.expect(tot_len.len > 0);
 }
@@ -95,4 +116,13 @@ test "day_with_no_prefix" {
     const d: u5 = 15;
     const day = try check_day(d);
     try std.testing.expect(day[0] != 1);
+}
+
+test "now" {
+    var buf: [124]u8 = undefined;
+    defer arena_allocator.deinit();
+    var io_threaded = threaded.init(arena_allocator.allocator());
+    defer io_threaded.deinit();
+    const time_now = try now(io_threaded.io(), &buf);
+    print("now:{s}\n", .{time_now});
 }

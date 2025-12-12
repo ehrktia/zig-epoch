@@ -24,12 +24,14 @@ fn check_day(day: u5) ![2]u8 {
     return b;
 }
 
-pub fn now() [24]u8 {
+pub fn now() [23]u8 {
     var threaded_io = threaded.init(arena_allocator.allocator());
     defer arena_allocator.deinit();
     defer threaded_io.deinit();
-    var buffer: [24]u8 = undefined;
-    const timestamp = clock.now(real_clock, threaded_io.ioBasic()) catch unreachable;
+    const timestamp = clock.now(real_clock, threaded_io.ioBasic()) catch |e| {
+        std.debug.panic("failed to get clock:{any}\n", .{e});
+        return "";
+    };
     const sec = io.Timestamp.toSeconds(timestamp);
     const sec_unsigned: u64 = @as(u64, @intCast(sec));
     const day_sec = epoch_seconds.getDaySeconds(epoch_seconds{ .secs = sec_unsigned });
@@ -39,10 +41,18 @@ pub fn now() [24]u8 {
     const day = epoch_seconds.getEpochDay(epoch_seconds{ .secs = sec_unsigned });
     const yr_day = epoch_day.calculateYearDay(day);
     const mon_day = epoch_year_day.calculateMonthDay(yr_day);
-    const day_check = check_day(mon_day.day_index + 1) catch unreachable;
+    const day_check = check_day(mon_day.day_index + 1) catch |e| {
+        std.debug.panic("failed to check day:{any}\n", .{e});
+        return "";
+    };
     const mill = io.Timestamp.toMilliseconds(timestamp);
-    _ = std.fmt.bufPrint(&buffer, "{d}-{d}-{s} {d}:{d}:{d}.{d}", .{ yr_day.year, mon_day.month.numeric(), day_check, hrs, mins, secs, @rem(mill, 1000) }) catch unreachable;
-    return buffer;
+    var buf: [23]u8 = undefined;
+    _ = std.fmt.bufPrint(&buf, "{d}-{d}-{s} {d}:{d}:{d}.{d}", .{ yr_day.year, mon_day.month.numeric(), day_check, hrs, mins, secs, @rem(mill, 1000) }) catch |e| {
+        std.debug.panic("error getting time:{any}\n", .{e});
+        return "";
+    };
+    print("{s}\n", .{buf});
+    return buf;
 }
 const Time = struct {
     const Self = @This();
@@ -78,10 +88,6 @@ const Time = struct {
         };
     }
     pub fn fmt(self: Self) ![]u8 {
-        const fs_std_out = std.fs.File.stdout();
-        var fs_writer = fs_std_out.writer(self.buffer);
-        const writer = &fs_writer.interface;
-        defer writer.flush() catch unreachable;
         const mill = io.Timestamp.toMilliseconds(self.timestamp);
         return std.fmt.bufPrint(self.buffer, "{d}-{d}-{s} {d}:{d}:{d}.{d}", .{ self.year, self.month, self.day, self.hrs, self.min, self.sec, @rem(mill, 1000) }) catch |e| {
             return e;
@@ -118,6 +124,6 @@ test "day_with_no_prefix" {
 }
 
 test "now" {
-    const time_now = now();
-    print("now:{s}\n", .{time_now});
+    const now_value = now();
+    print("{s}\n", .{now_value});
 }

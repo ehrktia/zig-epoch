@@ -51,7 +51,6 @@ pub fn now() [23]u8 {
         std.debug.panic("error getting time:{any}\n", .{e});
         return "";
     };
-    print("{s}\n", .{buf});
     return buf;
 }
 const Time = struct {

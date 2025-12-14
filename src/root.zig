@@ -10,49 +10,60 @@ const epoch_seconds = epoch.EpochSeconds;
 const day_epoch_seconds = epoch.DaySeconds;
 const epoch_day = epoch.EpochDay;
 const epoch_year_day = epoch.YearAndDay;
+const panic = std.debug.panic;
 
 const real_clock = clock.real;
 var arena_allocator = heap.ArenaAllocator.init(std.heap.page_allocator);
 
-fn check_day(day: u5) ![2]u8 {
+fn check_decimal(comptime T: type, in: T) ![2]u8 {
     var b: [2]u8 = undefined;
-    if (day > 9) {
-        _ = try std.fmt.bufPrint(&b, "{d}", .{day});
+    if (in > 9) {
+        _ = try std.fmt.bufPrint(&b, "{d}", .{in});
         return b;
     }
-    _ = try std.fmt.bufPrint(&b, "0{d}", .{day});
+    _ = try std.fmt.bufPrint(&b, "0{d}", .{in});
     return b;
 }
 
 pub fn now() [23]u8 {
+    var buf: [23]u8 = undefined;
     var threaded_io = threaded.init(arena_allocator.allocator());
     defer arena_allocator.deinit();
     defer threaded_io.deinit();
     const timestamp = clock.now(real_clock, threaded_io.ioBasic()) catch |e| {
-        std.debug.panic("failed to get clock:{any}\n", .{e});
-        return "";
+        panic("failed to get clock:{any}\n", .{e});
     };
     const sec = io.Timestamp.toSeconds(timestamp);
     const sec_unsigned: u64 = @as(u64, @intCast(sec));
     const day_sec = epoch_seconds.getDaySeconds(epoch_seconds{ .secs = sec_unsigned });
     const hrs = day_epoch_seconds.getHoursIntoDay(day_sec);
+    const hr = check_decimal(u5, hrs) catch |e| {
+        panic("{any}\n", .{e});
+    };
     const mins = day_epoch_seconds.getMinutesIntoHour(day_sec);
+    const min = check_decimal(u6, mins) catch |e| {
+        panic("{any}\n", .{e});
+    };
     const secs = day_epoch_seconds.getSecondsIntoMinute(day_sec);
+    const sec_padded = check_decimal(u6, secs) catch |e| {
+        panic("{any}\n", .{e});
+    };
     const day = epoch_seconds.getEpochDay(epoch_seconds{ .secs = sec_unsigned });
     const yr_day = epoch_day.calculateYearDay(day);
     const mon_day = epoch_year_day.calculateMonthDay(yr_day);
-    const day_check = check_day(mon_day.day_index + 1) catch |e| {
-        std.debug.panic("failed to check day:{any}\n", .{e});
-        return "";
+    const mon = check_decimal(u4, mon_day.month.numeric()) catch |e| {
+        panic("{any}\n", .{e});
+    };
+    const day_check = check_decimal(u5, mon_day.day_index + 1) catch |e| {
+        panic("failed to check day:{any}\n", .{e});
     };
     const mill = io.Timestamp.toMilliseconds(timestamp);
-    var buf: [23]u8 = undefined;
-    _ = std.fmt.bufPrint(&buf, "{d}-{d}-{s} {d}:{d}:{d}.{d}", .{ yr_day.year, mon_day.month.numeric(), day_check, hrs, mins, secs, @rem(mill, 1000) }) catch |e| {
-        std.debug.panic("error getting time:{any}\n", .{e});
-        return "";
+    _ = std.fmt.bufPrint(&buf, "{d}-{s}-{s} {s}:{s}:{s}.{d}", .{ yr_day.year, mon, day_check, hr, min, sec_padded, @rem(mill, 1000) }) catch |e| {
+        panic("error getting time:{any}\n", .{e});
     };
     return buf;
 }
+
 const Time = struct {
     const Self = @This();
     hrs: u5,
@@ -74,7 +85,7 @@ const Time = struct {
         const day = epoch_seconds.getEpochDay(epoch_seconds{ .secs = sec_unsigned });
         const yr_day = epoch_day.calculateYearDay(day);
         const mon_day = epoch_year_day.calculateMonthDay(yr_day);
-        const day_check = try check_day(mon_day.day_index + 1);
+        const day_check = try check_decimal(u5, mon_day.day_index + 1);
         return Time{
             .hrs = hrs,
             .min = mins,
@@ -112,17 +123,18 @@ test "create time" {
 
 test "day_with_prefix" {
     const d: u5 = 5;
-    const day = try check_day(d);
+    const day = try check_decimal(u5, d);
     try std.testing.expect(day[0] != 0);
 }
 
 test "day_with_no_prefix" {
     const d: u5 = 15;
-    const day = try check_day(d);
+    const day = try check_decimal(u5, d);
     try std.testing.expect(day[0] != 1);
 }
 
 test "now" {
-    const now_value = now();
-    print("{s}\n", .{now_value});
+    for (0..5) |_| {
+        print("{s}\n", .{now()});
+    }
 }

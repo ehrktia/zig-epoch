@@ -25,14 +25,22 @@ fn check_decimal(comptime T: type, in: T) ![2]u8 {
     return b;
 }
 
-fn check_m_sec(comptime T: type, in: T) ![3]u8 {
+fn check_m_sec(in: i64) ![3]u8 {
     var b: [3]u8 = undefined;
-    if (in > 9) {
-        _ = try std.fmt.bufPrint(&b, "{d}", .{in});
-        return b;
+    switch (in) {
+        0...9 => {
+            _ = try std.fmt.bufPrint(&b, "00{d}", .{in});
+            return b;
+        },
+        10...99 => {
+            _ = try std.fmt.bufPrint(&b, "0{d}", .{in});
+            return b;
+        },
+        else => {
+            _ = try std.fmt.bufPrint(&b, "{d}", .{in});
+            return b;
+        },
     }
-    _ = try std.fmt.bufPrint(&b, "0{d}", .{in});
-    return b;
 }
 
 pub fn now() [23]u8 {
@@ -69,7 +77,7 @@ pub fn now() [23]u8 {
     };
     const mill = io.Timestamp.toMilliseconds(timestamp);
     const mill_sec: i64 = @rem(mill, 1000);
-    const m_sec = check_m_sec(i64, mill_sec) catch |e| {
+    const m_sec = check_m_sec(mill_sec) catch |e| {
         panic("{any}\n", .{e});
     };
     _ = std.fmt.bufPrint(&buf, "{d}-{s}-{s} {s}:{s}:{s}.{s}", .{ yr_day.year, mon, day_check, hr, min, sec_padded, m_sec }) catch |e| {
@@ -147,8 +155,38 @@ test "day_with_no_prefix" {
     try std.testing.expect(day[0] != 1);
 }
 
+test "m_sec_single_digit" {
+    const d: i64 = 9;
+    const m_sec = try check_m_sec(d);
+    try std.testing.expect(m_sec.len == 3);
+}
+test "m_sec_single_two_digit" {
+    const d: i64 = 10;
+    const m_sec = try check_m_sec(d);
+    try std.testing.expect(m_sec.len == 3);
+}
+
+test "m_sec_single_two_digit_edge" {
+    const d: i64 = 99;
+    const m_sec = try check_m_sec(d);
+    try std.testing.expect(m_sec.len == 3);
+}
+
+test "m_sec_single_three_digit_edge" {
+    const d: i64 = 100;
+    const m_sec = try check_m_sec(d);
+    try std.testing.expect(m_sec.len == 3);
+}
+
+test "m_sec_single_three_digit" {
+    const d: i64 = 101;
+    const m_sec = try check_m_sec(d);
+    try std.testing.expect(m_sec.len == 3);
+}
+
 test "now" {
     for (0..5) |_| {
         print("{s}\n", .{now()});
     }
+    try std.testing.expect(now().len == 23);
 }

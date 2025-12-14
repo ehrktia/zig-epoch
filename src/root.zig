@@ -25,6 +25,16 @@ fn check_decimal(comptime T: type, in: T) ![2]u8 {
     return b;
 }
 
+fn check_m_sec(comptime T: type, in: T) ![3]u8 {
+    var b: [3]u8 = undefined;
+    if (in > 9) {
+        _ = try std.fmt.bufPrint(&b, "{d}", .{in});
+        return b;
+    }
+    _ = try std.fmt.bufPrint(&b, "0{d}", .{in});
+    return b;
+}
+
 pub fn now() [23]u8 {
     var buf: [23]u8 = undefined;
     var threaded_io = threaded.init(arena_allocator.allocator());
@@ -58,7 +68,11 @@ pub fn now() [23]u8 {
         panic("failed to check day:{any}\n", .{e});
     };
     const mill = io.Timestamp.toMilliseconds(timestamp);
-    _ = std.fmt.bufPrint(&buf, "{d}-{s}-{s} {s}:{s}:{s}.{d}", .{ yr_day.year, mon, day_check, hr, min, sec_padded, @rem(mill, 1000) }) catch |e| {
+    const mill_sec: i64 = @rem(mill, 1000);
+    const m_sec = check_m_sec(i64, mill_sec) catch |e| {
+        panic("{any}\n", .{e});
+    };
+    _ = std.fmt.bufPrint(&buf, "{d}-{s}-{s} {s}:{s}:{s}.{s}", .{ yr_day.year, mon, day_check, hr, min, sec_padded, m_sec }) catch |e| {
         panic("error getting time:{any}\n", .{e});
     };
     return buf;

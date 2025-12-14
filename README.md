@@ -10,8 +10,9 @@ output format provided by lib `yyyy.mm.dd HH:mi:ss.sss`
 const std = @import("std");
 const zig_epoch = @import("zig_epoch");
 pub fn main() !void {
-    std.log.info("{s}", .{zig_epoch.now()});
+    std.log.info("{s}: welcome", .{zig_epoch.now()});
 }
+
 
 
 ```

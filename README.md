@@ -10,11 +10,13 @@ output format provided by lib `yyyy.mm.dd HH:mi:ss.sss`
 const std = @import("std");
 const zig_epoch = @import("zig_epoch");
 pub fn main() !void {
-    std.debug.print("{s}\n", .{zig_epoch.now()});
+    std.log.info("{s}", .{zig_epoch.now()});
 }
 
 
 ```
+
+`output: info: 2025-12-14 10:24:02.236: welcome`
 
 
 ### to contribute

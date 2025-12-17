@@ -1,5 +1,5 @@
 ### zig-epoch
-[clock](docs/clock.jpg)   
+![clock](docs/clock.jpg "clock")   
 
 simple lib to provide date time stamp with millisecond precision 
 No linked or dependent C libs 

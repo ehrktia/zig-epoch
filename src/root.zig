@@ -2,10 +2,10 @@ const std = @import("std");
 const print = std.debug.print;
 const epoch = std.time.epoch;
 const day_seconds = epoch.DaySeconds;
-const io = std.Io;
+const std_io = std.Io;
 const heap = std.heap;
-const threaded = io.Threaded;
-const clock = io.Clock;
+const threaded = std_io.Threaded;
+const clock = std_io.Clock;
 const epoch_seconds = epoch.EpochSeconds;
 const day_epoch_seconds = epoch.DaySeconds;
 const epoch_day = epoch.EpochDay;
@@ -43,15 +43,13 @@ fn check_m_sec(in: i64) ![3]u8 {
     }
 }
 
-pub fn now() [23]u8 {
+pub fn now(io: std.Io) [23]u8 {
     var buf: [23]u8 = undefined;
-    var threaded_io = threaded.init(arena_allocator.allocator());
     defer arena_allocator.deinit();
-    defer threaded_io.deinit();
-    const timestamp = clock.now(real_clock, threaded_io.ioBasic()) catch |e| {
+    const timestamp = clock.now(real_clock, io) catch |e| {
         panic("failed to get clock:{any}\n", .{e});
     };
-    const sec = io.Timestamp.toSeconds(timestamp);
+    const sec = std.Io.Timestamp.toSeconds(timestamp);
     const sec_unsigned: u64 = @as(u64, @intCast(sec));
     const day_sec = epoch_seconds.getDaySeconds(epoch_seconds{ .secs = sec_unsigned });
     const hrs = day_epoch_seconds.getHoursIntoDay(day_sec);
@@ -75,7 +73,7 @@ pub fn now() [23]u8 {
     const day_check = check_decimal(u5, mon_day.day_index + 1) catch |e| {
         panic("failed to check day:{any}\n", .{e});
     };
-    const mill = io.Timestamp.toMilliseconds(timestamp);
+    const mill = std.Io.Timestamp.toMilliseconds(timestamp);
     const mill_sec: i64 = @rem(mill, 1000);
     const m_sec = check_m_sec(mill_sec) catch |e| {
         panic("{any}\n", .{e});
@@ -95,10 +93,10 @@ const Time = struct {
     day: [2]u8,
     year: u16,
     buffer: []u8,
-    timestamp: io.Timestamp,
-    pub fn init(std_io: io, buffer: []u8) !Time {
-        const timestamp = try clock.now(real_clock, std_io);
-        const sec = io.Timestamp.toSeconds(timestamp);
+    timestamp: std_io.Timestamp,
+    pub fn init(io: std.Io, buffer: []u8) !Time {
+        const timestamp = try clock.now(real_clock, io);
+        const sec = std.Io.Timestamp.toSeconds(timestamp);
         const sec_unsigned: u64 = @as(u64, @intCast(sec));
         const day_sec = epoch_seconds.getDaySeconds(epoch_seconds{ .secs = sec_unsigned });
         const hrs = day_epoch_seconds.getHoursIntoDay(day_sec);
@@ -120,7 +118,7 @@ const Time = struct {
         };
     }
     pub fn fmt(self: Self) ![]u8 {
-        const mill = io.Timestamp.toMilliseconds(self.timestamp);
+        const mill = std_io.Timestamp.toMilliseconds(self.timestamp);
         return std.fmt.bufPrint(self.buffer, "{d}-{d}-{s} {d}:{d}:{d}.{d}", .{ self.year, self.month, self.day, self.hrs, self.min, self.sec, @rem(mill, 1000) }) catch |e| {
             return e;
         };
@@ -185,8 +183,10 @@ test "m_sec_single_three_digit" {
 }
 
 test "now" {
+    var io_threaded = threaded.init(arena_allocator.allocator());
+    defer io_threaded.deinit();
     for (0..5) |_| {
-        print("{s}\n", .{now()});
+        print("{s}\n", .{now(io_threaded.io())});
     }
-    try std.testing.expect(now().len == 23);
+    try std.testing.expect(now(io_threaded.io()).len == 23);
 }

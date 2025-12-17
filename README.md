@@ -1,6 +1,8 @@
 ### zig-epoch
+[clock](docs/clock.jpg)   
 
-simple lib to provide date time stamp with millisecond precision
+simple lib to provide date time stamp with millisecond precision 
+No linked or dependent C libs 
 
 output format provided by lib `yyyy.mm.dd HH:mi:ss.sss`
 

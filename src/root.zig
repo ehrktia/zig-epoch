@@ -43,7 +43,7 @@ fn check_m_sec(in: i64) ![3]u8 {
     }
 }
 
-const Time = struct {
+pub const Time = struct {
     const Self = @This();
     io: *std.Io,
     pub fn create(io: *std.Io) Time {

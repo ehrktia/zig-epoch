@@ -13,13 +13,14 @@ const std = @import("std");
 const zig_epoch = @import("zig_epoch");
 const clock = zig_epoch.Time
 pub fn main() !void {
-    var arena_allocator = heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena_allocator.deinit();
-    var io_threaded = threaded.init(arena_allocator.allocator());
-    defer io_threaded.deinit();
-    var threaded_io = io_threaded.io();
-    const tnow = Time.create(&threaded_io);
-    std.log.info("{s}: welcome", .{tnow.now()});
+var heap_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer heap_allocator.deinit();
+    var threaded = std.Io.Threaded.init(heap_allocator.allocator());
+    defer threaded.deinit();
+    var threaded_io = threaded.io();
+    const now_time = epch.Time.create(&threaded_io);
+    std.log.info("{s}\n", .{now_time.now()});
+
 }
 
 

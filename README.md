@@ -19,7 +19,7 @@ pub fn main() !void {
     defer io_threaded.deinit();
     var threaded_io = io_threaded.io();
     const tnow = Time.create(&threaded_io);
-    std.log.info("{s}: welcome", .{zig_epoch.now()});
+    std.log.info("{s}: welcome", .{tnow.now()});
 }
 
 

@@ -11,7 +11,14 @@ output format provided by lib `yyyy.mm.dd HH:mi:ss.sss`
 ```zig
 const std = @import("std");
 const zig_epoch = @import("zig_epoch");
+const clock = zig_epoch.Time
 pub fn main() !void {
+    var arena_allocator = heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena_allocator.deinit();
+    var io_threaded = threaded.init(arena_allocator.allocator());
+    defer io_threaded.deinit();
+    var threaded_io = io_threaded.io();
+    const tnow = Time.create(&threaded_io);
     std.log.info("{s}: welcome", .{zig_epoch.now()});
 }
 

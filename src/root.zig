@@ -43,85 +43,53 @@ fn check_m_sec(in: i64) ![3]u8 {
     }
 }
 
-pub fn now(io: std.Io) [23]u8 {
-    var buf: [23]u8 = undefined;
-    defer arena_allocator.deinit();
-    const timestamp = clock.now(real_clock, io) catch |e| {
-        panic("failed to get clock:{any}\n", .{e});
-    };
-    const sec = std.Io.Timestamp.toSeconds(timestamp);
-    const sec_unsigned: u64 = @as(u64, @intCast(sec));
-    const day_sec = epoch_seconds.getDaySeconds(epoch_seconds{ .secs = sec_unsigned });
-    const hrs = day_epoch_seconds.getHoursIntoDay(day_sec);
-    const hr = check_decimal(u5, hrs) catch |e| {
-        panic("{any}\n", .{e});
-    };
-    const mins = day_epoch_seconds.getMinutesIntoHour(day_sec);
-    const min = check_decimal(u6, mins) catch |e| {
-        panic("{any}\n", .{e});
-    };
-    const secs = day_epoch_seconds.getSecondsIntoMinute(day_sec);
-    const sec_padded = check_decimal(u6, secs) catch |e| {
-        panic("{any}\n", .{e});
-    };
-    const day = epoch_seconds.getEpochDay(epoch_seconds{ .secs = sec_unsigned });
-    const yr_day = epoch_day.calculateYearDay(day);
-    const mon_day = epoch_year_day.calculateMonthDay(yr_day);
-    const mon = check_decimal(u4, mon_day.month.numeric()) catch |e| {
-        panic("{any}\n", .{e});
-    };
-    const day_check = check_decimal(u5, mon_day.day_index + 1) catch |e| {
-        panic("failed to check day:{any}\n", .{e});
-    };
-    const mill = std.Io.Timestamp.toMilliseconds(timestamp);
-    const mill_sec: i64 = @rem(mill, 1000);
-    const m_sec = check_m_sec(mill_sec) catch |e| {
-        panic("{any}\n", .{e});
-    };
-    _ = std.fmt.bufPrint(&buf, "{d}-{s}-{s} {s}:{s}:{s}.{s}", .{ yr_day.year, mon, day_check, hr, min, sec_padded, m_sec }) catch |e| {
-        panic("error getting time:{any}\n", .{e});
-    };
-    return buf;
-}
-
 const Time = struct {
     const Self = @This();
-    hrs: u5,
-    min: u6,
-    sec: u6,
-    month: u4,
-    day: [2]u8,
-    year: u16,
-    buffer: []u8,
-    timestamp: std_io.Timestamp,
-    pub fn init(io: std.Io, buffer: []u8) !Time {
-        const timestamp = try clock.now(real_clock, io);
+    io: *std.Io,
+    pub fn create(io: *std.Io) Time {
+        return Time{
+            .io = io,
+        };
+    }
+    pub fn now(self: Self) [23]u8 {
+        var buf: [23]u8 = undefined;
+        defer arena_allocator.deinit();
+        const timestamp = clock.now(real_clock, self.io.*) catch |e| {
+            panic("failed to get clock:{any}\n", .{e});
+        };
         const sec = std.Io.Timestamp.toSeconds(timestamp);
         const sec_unsigned: u64 = @as(u64, @intCast(sec));
         const day_sec = epoch_seconds.getDaySeconds(epoch_seconds{ .secs = sec_unsigned });
         const hrs = day_epoch_seconds.getHoursIntoDay(day_sec);
+        const hr = check_decimal(u5, hrs) catch |e| {
+            panic("{any}\n", .{e});
+        };
         const mins = day_epoch_seconds.getMinutesIntoHour(day_sec);
+        const min = check_decimal(u6, mins) catch |e| {
+            panic("{any}\n", .{e});
+        };
         const secs = day_epoch_seconds.getSecondsIntoMinute(day_sec);
+        const sec_padded = check_decimal(u6, secs) catch |e| {
+            panic("{any}\n", .{e});
+        };
         const day = epoch_seconds.getEpochDay(epoch_seconds{ .secs = sec_unsigned });
         const yr_day = epoch_day.calculateYearDay(day);
         const mon_day = epoch_year_day.calculateMonthDay(yr_day);
-        const day_check = try check_decimal(u5, mon_day.day_index + 1);
-        return Time{
-            .hrs = hrs,
-            .min = mins,
-            .sec = secs,
-            .month = mon_day.month.numeric(),
-            .day = day_check,
-            .year = yr_day.year,
-            .buffer = buffer,
-            .timestamp = timestamp,
+        const mon = check_decimal(u4, mon_day.month.numeric()) catch |e| {
+            panic("{any}\n", .{e});
         };
-    }
-    pub fn fmt(self: Self) ![]u8 {
-        const mill = std_io.Timestamp.toMilliseconds(self.timestamp);
-        return std.fmt.bufPrint(self.buffer, "{d}-{d}-{s} {d}:{d}:{d}.{d}", .{ self.year, self.month, self.day, self.hrs, self.min, self.sec, @rem(mill, 1000) }) catch |e| {
-            return e;
+        const day_check = check_decimal(u5, mon_day.day_index + 1) catch |e| {
+            panic("failed to check day:{any}\n", .{e});
         };
+        const mill = std.Io.Timestamp.toMilliseconds(timestamp);
+        const mill_sec: i64 = @rem(mill, 1000);
+        const m_sec = check_m_sec(mill_sec) catch |e| {
+            panic("{any}\n", .{e});
+        };
+        _ = std.fmt.bufPrint(&buf, "{d}-{s}-{s} {s}:{s}:{s}.{s}", .{ yr_day.year, mon, day_check, hr, min, sec_padded, m_sec }) catch |e| {
+            panic("error getting time:{any}\n", .{e});
+        };
+        return buf;
     }
 };
 
@@ -130,15 +98,15 @@ const Time = struct {
 // ===========================================================
 
 test "create time" {
-    var buf: [124]u8 = undefined;
     defer arena_allocator.deinit();
     var io_threaded = threaded.init(arena_allocator.allocator());
     defer io_threaded.deinit();
-    const tnow = Time.init(io_threaded.io(), &buf) catch |e| {
-        std.debug.panic("error creating time:{any}\n", .{e});
-    };
-    const tot_len = try tnow.fmt();
-    try std.testing.expect(tot_len.len > 0);
+    var threaded_io = io_threaded.io();
+    const tnow = Time.create(&threaded_io);
+    for (0..5) |_| {
+        print("{s}\n", .{tnow.now()});
+    }
+    try std.testing.expect(tnow.now().len == 23);
 }
 
 test "day_with_prefix" {
@@ -180,13 +148,4 @@ test "m_sec_single_three_digit" {
     const d: i64 = 101;
     const m_sec = try check_m_sec(d);
     try std.testing.expect(m_sec.len == 3);
-}
-
-test "now" {
-    var io_threaded = threaded.init(arena_allocator.allocator());
-    defer io_threaded.deinit();
-    for (0..5) |_| {
-        print("{s}\n", .{now(io_threaded.io())});
-    }
-    try std.testing.expect(now(io_threaded.io()).len == 23);
 }

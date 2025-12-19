@@ -1,6 +1,10 @@
 ### zig-epoch
 ![clock](docs/clock.jpg "clock")   
 
+
+
+Thank you to the good people from zig discord showcase channel did review and helped me with the code    
+
 simple lib to provide date time stamp with millisecond precision 
 No linked or dependent C libs 
 
@@ -23,8 +27,6 @@ var heap_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 
 }
 
-
-
 ```
 
 `output: info: 2025-12-14 10:24:02.236: welcome`
@@ -35,4 +37,4 @@ var heap_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 - this repo follows commitlint
 - create your branch, implement your changes 
 - run test by using `zig test src/root.zig`
-- raise a PR
+- raise a PR   

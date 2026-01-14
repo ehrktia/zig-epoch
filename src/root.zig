@@ -13,15 +13,13 @@ const panic = std.debug.panic;
 
 const real_clock = clock.real;
 
-fn check_decimal(comptime T: type, in: T) ![2]u8 {
-    var b: [2]u8 = undefined;
-    _ = try std.fmt.bufPrint(&b, "{d:0>2}", .{in}); // Forces 2 digits, padding with '0'
-    return b;
-}
-
-fn check_m_sec(in: u16) ![3]u8 {
-    var b: [3]u8 = undefined;
-    _ = try std.fmt.bufPrint(&b, "{d:0>3}", .{in}); // Forces 3 digits, padding with '0'
+fn safeDecimal(comptime limit: u64, in: anytype) [std.fmt.comptimePrint("{d}", .{limit}).len]u8 {
+    // 1. Calculate the digit count of the limit at compile-time
+    const size = comptime std.fmt.comptimePrint("{d}", .{limit}).len;
+    var b: [size]u8 = undefined;
+    // Clamp any value that is larger to a limit
+    const value = @min(@as(u64, in), limit);
+    _ = std.fmt.bufPrint(&b, "{d:0>[1]}", .{ value, b.len }) catch unreachable;
     return b;
 }
 
@@ -62,7 +60,7 @@ fn getTimeParts(timestamp: std.Io.Timestamp) TimeParts {
         .hour = hrs,
         .min = mins,
         .sec = secs,
-        .msec = @intCast(msec),
+        .msec = msec,
     };
 }
 
@@ -82,18 +80,12 @@ pub const Time = struct {
         ) catch |e|
             panic("failed to get clock:{any}\n", .{e});
         const parts = getTimeParts(timestamp);
-        const hr = check_decimal(u5, parts.hour) catch |e|
-            panic("{any}\n", .{e});
-        const min = check_decimal(u6, parts.min) catch |e|
-            panic("{any}\n", .{e});
-        const sec_padded = check_decimal(u6, parts.sec) catch |e|
-            panic("{any}\n", .{e});
-        const mon = check_decimal(u4, parts.month_index) catch |e|
-            panic("{any}\n", .{e});
-        const day_check = check_decimal(u5, parts.day) catch |e|
-            panic("failed to check day:{any}\n", .{e});
-        const m_sec = check_m_sec(parts.msec) catch |e|
-            panic("{any}\n", .{e});
+        const mon = safeDecimal(12, parts.month_index);
+        const day_check = safeDecimal(31, parts.day);
+        const hr = safeDecimal(23, parts.hour);
+        const min = safeDecimal(59, parts.min);
+        const sec_padded = safeDecimal(59, parts.sec);
+        const m_sec = safeDecimal(999, parts.msec);
         _ = std.fmt.bufPrint(&buf, "{d}-{s}-{s} {s}:{s}:{s}.{s}", .{
             parts.year,
             mon,
@@ -116,14 +108,10 @@ pub const Time = struct {
         var buf: [15]u8 = undefined;
 
         const mon = MONTH_NAMES[parts.month_index - 1];
-        const hr = check_decimal(u5, parts.hour) catch |e|
-            panic("{any}\n", .{e});
-        const min = check_decimal(u6, parts.min) catch |e|
-            panic("{any}\n", .{e});
-        const sec = check_decimal(u6, parts.sec) catch |e|
-            panic("{any}\n", .{e});
-        const day = check_decimal(u5, parts.day) catch |e|
-            panic("{any}\n", .{e});
+        const day = safeDecimal(31, parts.day);
+        const hr = safeDecimal(24, parts.hour);
+        const min = safeDecimal(59, parts.min);
+        const sec = safeDecimal(59, parts.sec);
 
         _ = std.fmt.bufPrint(&buf, "{s} {s} {s}:{s}:{s}", .{
             mon,
@@ -163,41 +151,41 @@ test "create time" {
 
 test "day_with_prefix" {
     const d: u5 = 5;
-    const day = try check_decimal(u5, d);
+    const day = safeDecimal(31, d);
     try std.testing.expectEqualSlices(u8, "05", &day);
 }
 
 test "day_with_no_prefix" {
     const d: u5 = 15;
-    const day = try check_decimal(u5, d);
+    const day = safeDecimal(31, d);
     try std.testing.expectEqualSlices(u8, "15", &day);
 }
 
 test "m_sec_single_digit" {
-    const d: i64 = 9;
-    const m_sec = try check_m_sec(d);
-    try std.testing.expect(m_sec.len == 3);
+    const d: u10 = 9;
+    const m_sec = safeDecimal(999, d);
+    try std.testing.expectEqualSlices(u8, "009", &m_sec);
 }
 test "m_sec_single_two_digit" {
-    const d: i64 = 10;
-    const m_sec = try check_m_sec(d);
-    try std.testing.expect(m_sec.len == 3);
+    const d: u10 = 10;
+    const m_sec = safeDecimal(999, d);
+    try std.testing.expectEqualSlices(u8, "010", &m_sec);
 }
 
 test "m_sec_single_two_digit_edge" {
-    const d: i64 = 99;
-    const m_sec = try check_m_sec(d);
-    try std.testing.expect(m_sec.len == 3);
-}
-
-test "m_sec_single_three_digit_edge" {
-    const d: i64 = 100;
-    const m_sec = try check_m_sec(d);
-    try std.testing.expect(m_sec.len == 3);
+    const d: u10 = 99;
+    const m_sec = safeDecimal(999, d);
+    try std.testing.expectEqualSlices(u8, "099", &m_sec);
 }
 
 test "m_sec_single_three_digit" {
-    const d: i64 = 101;
-    const m_sec = try check_m_sec(d);
-    try std.testing.expect(m_sec.len == 3);
+    const d: u10 = 100;
+    const m_sec = safeDecimal(999, d);
+    try std.testing.expectEqualSlices(u8, "100", &m_sec);
+}
+
+test "m_sec_single_three_digit_edge" {
+    const d: u10 = 990;
+    const m_sec = safeDecimal(999, d);
+    try std.testing.expectEqualSlices(u8, "990", &m_sec);
 }

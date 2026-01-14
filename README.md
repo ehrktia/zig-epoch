@@ -31,9 +31,11 @@ var heap_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 }
 
 ```
-
-`output: info: 2025-12-14 10:24:02.236`
-`output: info: Dec 14 10:24:02`
+Output from example:
+```
+info: 2025-12-14 10:24:02.236
+info: Dec 14 10:24:02
+```
 
 
 ### to contribute

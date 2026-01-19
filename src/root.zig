@@ -52,7 +52,9 @@ fn getTimeParts(timestamp: std.Io.Timestamp) TimeParts {
     const mon_day = epoch_year_day.calculateMonthDay(yr_day);
 
     const msec = @rem(std.Io.Timestamp.toMilliseconds(timestamp), 1000);
-
+    var buf: [3]u8 = undefined;
+    const strMsec = std.fmt.bufPrint(&buf, "{d}", .{msec}) catch unreachable;
+    const msec_ufmt = std.fmt.parseInt(u16, strMsec, 10) catch unreachable;
     return TimeParts{
         .year = yr_day.year,
         .month_index = mon_day.month.numeric(),
@@ -60,7 +62,7 @@ fn getTimeParts(timestamp: std.Io.Timestamp) TimeParts {
         .hour = hrs,
         .min = mins,
         .sec = secs,
-        .msec = msec,
+        .msec = msec_ufmt,
     };
 }
 
